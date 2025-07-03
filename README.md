@@ -126,6 +126,3 @@ Team Name- **Daredevil Dynamo**
 
 Student & Developer
 🚀 Hackathon enthusiast | 💡 Passionate about AI & Computer Vision
-
-```
-```
