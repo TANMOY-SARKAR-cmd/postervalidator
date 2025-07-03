@@ -118,13 +118,12 @@ The server will run on: `http://localhost:3000`
 
 ## 👨‍💻 Author
 
-**Tanmoy Sarkar**
+Team Name- **Daredevil Dynamo**
+
+**Tanmoy Sarkar**  **Sourin Rom**
+
 Student & Developer
 🚀 Hackathon enthusiast | 💡 Passionate about AI & Computer Vision
 
 ```
-
----
-
-Let me know if you'd like a [**badge-enhanced README with deploy buttons**](f) or [**Netlify+Railway frontend/backend demo example**](f)!
 ```
