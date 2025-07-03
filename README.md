@@ -120,7 +120,9 @@ The server will run on: `http://localhost:3000`
 
 Team Name- **Daredevil Dynamo**
 
-**Tanmoy Sarkar**  **Sourin Rom**
+**Tanmoy Sarkar** 
+
+**Sourin Rom**
 
 Student & Developer
 🚀 Hackathon enthusiast | 💡 Passionate about AI & Computer Vision
