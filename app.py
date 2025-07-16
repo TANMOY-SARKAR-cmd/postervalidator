@@ -1,12 +1,13 @@
 # app.py
 from flask import Flask, request, jsonify
 import requests
-import cv2
 import os
+import cv2
 
-from utils.detector import detect_poster
+from utils.detector import detect_poster_and_objects
 from utils.ocr import detect_text
-from utils.dimension import estimate_cm_dimensions
+from utils.dimension import estimate_poster_size
+from utils.logo_matcher import match_logos
 
 app = Flask(__name__)
 
@@ -15,81 +16,59 @@ def validate_image():
     data = request.json
     image_url = data.get("imageUrl")
     expected_texts = data.get("texts", [])
-    expected_logos = data.get("logos", [])  # Optional, placeholder
+    expected_logos = data.get("logos", [])
 
     if not image_url:
         return jsonify({"error": "imageUrl required"}), 400
 
-    # Fetch the image
-    response = requests.get(image_url, stream=True)
-    if response.status_code != 200:
-        return jsonify({"error": "Failed to fetch image"}), 400
+    try:
+        response = requests.get(image_url, stream=True, timeout=5)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to fetch image"}), 400
 
-    image_path = "temp.jpg"
-    with open(image_path, 'wb') as f:
-        f.write(response.content)
+        image_path = "temp.jpg"
+        with open(image_path, 'wb') as f:
+            f.write(response.content)
+    except Exception as e:
+        return jsonify({"error": f"Exception while downloading image: {str(e)}"}), 500
 
-    # Run poster detection
-    detections = detect_poster(image_path)
-    containsPoster = len(detections) > 0
+    result = {}
 
-    result = {
-        "containsPoster": containsPoster
-    }
+    try:
+        poster_info, objects = detect_poster_and_objects(image_path)
+        containsPoster = poster_info is not None
+        result["containsPoster"] = containsPoster
 
-    if containsPoster:
-        box = detections[0]['bbox']
-        dims = estimate_cm_dimensions(box[2], box[3])
-        result.update({
-            "boundingBox": {
-                "x": box[0], "y": box[1],
-                "width": box[2], "height": box[3]
-            },
-            "dimensionsCm": dims,
-            "confidence": detections[0]["confidence"]
-        })
+        if containsPoster:
+            dimensions = estimate_poster_size(poster_info, objects)
+            result.update({
+                "boundingBox": {
+                    "x": poster_info["x"], "y": poster_info["y"],
+                    "width": poster_info["w"], "height": poster_info["h"]
+                },
+                "dimensionsCm": dimensions["cm"],
+                "pixelsPerCm": dimensions["scale"],
+                "fallbackUsed": dimensions["fallback"]
+            })
 
-        # Optional: match OCR text if provided
-        if expected_texts:
-            ocr_results = detect_text(image_path)
-            found_texts = [item["text"].lower() for item in ocr_results]
-            matched = any(expected.lower() in found_texts for expected in expected_texts)
-            result["matchedTexts"] = matched
-            result["matchedTextList"] = found_texts  # for debugging
+            # OCR Matching
+            if expected_texts:
+                ocr_results = detect_text(image_path, poster_info)
+                found_texts = [item["text"].lower() for item in ocr_results]
+                matched = any(any(expected.lower() in t for t in found_texts) for expected in expected_texts)
+                result["matchedTexts"] = matched
+                result["matchedTextList"] = found_texts
 
-                # Optional: add logo matching
-        if expected_logos:
-            matched_logos = []
-            poster_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            # Logo Matching
+            if expected_logos:
+                matched, matched_list = match_logos(image_path, expected_logos)
+                result["matchedLogos"] = matched
+                result["matchedLogoList"] = matched_list
 
-            for logo_url in expected_logos:
-                try:
-                    logo_res = requests.get(logo_url, stream=True)
-                    if logo_res.status_code != 200:
-                        continue
-                    logo_path = "logo_temp.jpg"
-                    with open(logo_path, "wb") as f:
-                        f.write(logo_res.content)
-
-                    logo_img = cv2.imread(logo_path, cv2.IMREAD_GRAYSCALE)
-                    if logo_img is None or poster_img is None:
-                        continue
-
-                    result_match = cv2.matchTemplate(poster_img, logo_img, cv2.TM_CCOEFF_NORMED)
-                    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result_match)
-
-                    if max_val > 0.8:
-                        matched_logos.append(logo_url)
-
-                except Exception as e:
-                    print(f"Error matching logo: {logo_url} — {e}")
-                    continue
-
-            result["matchedLogos"] = len(matched_logos) > 0
-            result["matchedLogoList"] = matched_logos
+    except Exception as e:
+        return jsonify({"error": f"Processing failed: {str(e)}"}), 500
 
     return jsonify(result)
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
