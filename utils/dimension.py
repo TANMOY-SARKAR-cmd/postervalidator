@@ -1,6 +1,6 @@
 # utils/dimension.py
 import math
-from .detector import KNOWN_DIMENSIONS_CM, RELIABILITY
+import config
 
 def estimate_poster_size(poster, objects):
     best = None
@@ -10,13 +10,13 @@ def estimate_poster_size(poster, objects):
         ox, oy = obj["center"]
         dist = math.hypot(px - ox, py - oy)
         prox = 1 / (1 + dist / 100)
-        s = RELIABILITY[obj["name"]] * obj["confidence"] * prox
+        s = config.RELIABILITY[obj["name"]] * obj["confidence"] * prox
         if s > score:
             best, score = obj, s
 
     if best:
         ref_h_px = best["bbox"][3]
-        ref_h_cm = KNOWN_DIMENSIONS_CM[best["name"]]
+        ref_h_cm = config.KNOWN_DIMENSIONS_CM[best["name"]]
         scale = ref_h_px / ref_h_cm
         width_cm = poster["w"] / scale
         height_cm = poster["h"] / scale
@@ -26,8 +26,8 @@ def estimate_poster_size(poster, objects):
             "fallback": False
         }
     else:
-        # fallback using 96 DPI conversion
-        fallback_scale = 96 / 2.54
+        # fallback using DPI conversion
+        fallback_scale = config.FALLBACK_DPI / 2.54
         width_cm = poster["w"] / fallback_scale
         height_cm = poster["h"] / fallback_scale
         return {

@@ -2,33 +2,21 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import config
 
 # Load YOLO once
-model = YOLO("yolov8n.pt")
+model = None
 
-# Average height in cm for scale references
-KNOWN_DIMENSIONS_CM = {
-    "bus": 320,
-    "truck": 350,
-    "car": 150,
-    "traffic light": 120,
-    "person": 170,
-}
-
-# Heuristic reliability weights (tune as needed)
-RELIABILITY = {
-    "bus": 0.9,
-    "truck": 0.85,
-    "traffic light": 0.7,
-    "car": 0.6,
-    "person": 0.4,
-}
-
+def _get_yolo_model():
+    global model
+    if model is None:
+        model = YOLO(config.YOLO["model_path"])
+    return model
 
 def _find_poster_region(image,
-                        min_area_ratio: float = 0.005,
-                        min_rectangularity: float = 0.55,
-                        aspect_ratio_range=(0.2, 5.0)):
+                        min_area_ratio: float = config.POSTER_FINDER["min_area_ratio"],
+                        min_rectangularity: float = config.POSTER_FINDER["min_rectangularity"],
+                        aspect_ratio_range=config.POSTER_FINDER["aspect_ratio_range"]):
     """
     Color-agnostic structural poster finder.
     Returns (x, y, w, h) or None.
@@ -105,12 +93,13 @@ def detect_poster_and_objects(image_path):
     }
 
     # --- YOLO object detection for scaling references ---
+    model = _get_yolo_model()
     detections = model(image)[0]
     objects = []
     for box in detections.boxes:
         name = model.names[int(box.cls[0])]
         conf = float(box.conf[0])
-        if name in KNOWN_DIMENSIONS_CM and conf > 0.4:
+        if name in config.KNOWN_DIMENSIONS_CM and conf > config.YOLO["confidence_threshold"]:
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
             w_obj = float(x2 - x1)
             h_obj = float(y2 - y1)
